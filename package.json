@@ -8,8 +8,19 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@json2csv/plainjs": "^7.0.6",
+    "axios": "^1.8.4",
+    "chart.js": "^3.9.1",
     "core-js": "^3.8.3",
-    "vue": "^3.2.13"
+    "jspdf": "^3.0.1",
+    "os-browserify": "^0.3.0",
+    "papaparse": "^5.5.2",
+    "stream-browserify": "^3.0.0",
+    "vue": "^3.2.13",
+    "vue-chartjs": "^4.1.2",
+    "vue-router": "^4.5.0",
+    "vue3-observe-visibility": "^1.0.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",

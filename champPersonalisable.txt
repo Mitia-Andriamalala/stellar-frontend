@@ -1,0 +1,8 @@
+Asina note perso 
+Compte ray afaka manome note --> note produit ; calcul note :
+ Premiere note ok , deuxieme note + la derniere note  diviser par deux
+ Meme chose pour le troisieme div par deux 
+ Note 1 a 5
+
+ --> Ensuite la derniere valeur sera ce qu`on prendra a la fin 
+ User = 1 vote ; 

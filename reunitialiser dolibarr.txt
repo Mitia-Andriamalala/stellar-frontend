@@ -1,0 +1,37 @@
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- Tiers (clients/fournisseurs)
+TRUNCATE llx_societe;
+TRUNCATE llx_socpeople;
+
+-- Fournisseurs spécifiques (dans llx_societe aussi, mais tu peux filtrer par "fournisseur" dans l'app)
+
+-- Catégories
+TRUNCATE llx_categorie;
+TRUNCATE llx_categorie_societe;
+TRUNCATE llx_categorie_product;
+
+-- Produits
+TRUNCATE llx_product;
+
+-- Propositions commerciales
+TRUNCATE llx_propal;
+TRUNCATE llx_propaldet;
+
+-- Commandes clients
+TRUNCATE llx_commande;
+TRUNCATE llx_commandedet;
+
+-- Factures clients
+TRUNCATE llx_facture;
+TRUNCATE llx_facturedet;
+
+-- Paiements
+TRUNCATE llx_paiement;
+TRUNCATE llx_paiement_facture;
+
+-- Expéditions
+TRUNCATE llx_expedition;
+TRUNCATE llx_expeditiondet;
+
+SET FOREIGN_KEY_CHECKS = 1;

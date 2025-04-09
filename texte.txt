@@ -1,0 +1,557 @@
+<template>
+  <div id="app">
+    <!-- Si non connecté, afficher le formulaire de login -->
+    <div v-if="!isLoggedIn" class="login-container">
+      <h2>Connexion</h2>
+      <form @submit.prevent="login">
+        <div class="form-group">
+          <label for="username">Identifiant</label>
+          <input type="text" v-model="username" id="username" required />
+        </div>
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input type="password" v-model="password" id="password" required />
+        </div>
+        <button type="submit" :disabled="loggingIn">
+          {{ loggingIn ? 'Connexion...' : 'Se connecter' }}
+        </button>
+        <p v-if="loginError" class="error">{{ loginError }}</p>
+      </form>
+    </div>
+
+    <!-- Si connecté, afficher le contenu existant -->
+    <div v-else>
+      <!-- Navbar -->
+      <StellarNavbar />
+
+      <!-- Intro Section -->
+      <IntroSection />
+
+      <!-- Brand Section -->
+      <BrandSection />
+
+      <!-- Terrain Reference Section -->
+      <TerrainReference />
+
+      <!-- Features Section -->
+      <FeaturesSection />
+
+      <!-- Gallery Section -->
+      <GallerySection />
+
+      <!-- Autres Produits Stellar Section -->
+      <AutresProduitsStellar />
+
+      <!-- Contact Section -->
+      <ContactSection />
+
+      <router-view />
+
+      <!-- SECTION PRODUITS (API Dolibarr) -->
+      <section class="content" aria-labelledby="produits-title">
+        <h1 id="produits-title" class="produit-heading">Import STELLAR Madagascar</h1>
+
+
+        <!-- Formulaire d'import manuel -->
+        <div class="import-form">
+          <h2>Importer un produit manuellement</h2>
+          <input v-model="newProduct.ref" placeholder="Référence (ex. STELLAR-Z-001)" required />
+          <input v-model="newProduct.label" placeholder="Nom (ex. Vélo Stellar Z)" required />
+          <input v-model="newProduct.price" placeholder="Prix (ex. 1500000)" type="number" required />
+          <button @click="importProduct" :disabled="importing">
+            {{ importing ? 'Importation...' : 'Importer' }}
+          </button>
+          <p v-if="importMessage" :class="importSuccess ? 'success' : 'error'">{{ importMessage }}</p>
+        </div>
+
+        <!-- Formulaire d'import fichier -->
+        <div class="import-form">
+          <h2>Importer depuis un fichier (CSV, Excel, JSON)</h2>
+          <input type="file" @change="handleFileUpload" accept=".csv, .json, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+          <button @click="importProductsFromFile" :disabled="importing || !file">
+            {{ importing ? 'Importation...' : 'Importer le fichier' }}
+          </button>
+          <p v-if="fileImportMessage" :class="fileImportSuccess ? 'success' : 'error'">{{ fileImportMessage }}</p>
+        </div>
+
+        <!-- Liste des produits -->
+
+      </section>
+      
+      <!-- Footer -->
+      <footer class="footer-stellar">
+        <div>
+          <p style="font-family: 'Montserrat', sans-serif; font-weight: 500;">
+            <span style="font-weight: 900;">STELLAR Z</span> : L’avenir du vélo tout terrain commence ici
+          </p>
+          <p style="margin-top: 1rem; font-family: 'Montserrat', sans-serif; font-weight: 700;">
+            Téléphone : <span style="font-weight: 400;">01 22 86 34 89</span>
+          </p>
+          <p style="font-family: 'Montserrat', sans-serif; font-weight: 700;">
+            Email : <span style="font-weight: 400;">contact@stellar.com</span>
+          </p>
+        </div>
+        <div class="footer-socials">
+          <span style="font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 0.875rem;">
+            stellarbicycles
+          </span>
+          <div class="social-icons">
+            <a href="#" aria-label="Facebook">
+              <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" class="w-8 h-8" alt="Facebook" />
+            </a>
+            <a href="#" aria-label="Instagram">
+              <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" class="w-8 h-8" alt="Instagram" />
+            </a>
+            <a href="#" aria-label="X (Twitter)">
+              <img src="@/assets/img/Tracé 96.png" class="w-8 h-8" alt="X" />
+            </a>
+          </div>
+        </div>
+      </footer>
+    
+    </div>
+  </div>
+</template>
+
+<script>
+import StellarNavbar from './components/StellarNavbar.vue';
+import IntroSection from './components/IntroSection.vue';
+import BrandSection from './components/BrandSection.vue';
+import TerrainReference from './components/TerrainReference.vue';
+import FeaturesSection from './components/FeaturesSection.vue';
+import GallerySection from './components/GallerySection.vue';
+import ContactSection from './components/ContactSection.vue';
+import AutresProduitsStellar from './components/AutresProduitsStellar.vue';
+import axios from 'axios';
+import Papa from 'papaparse'; 
+import * as XLSX from 'xlsx'; 
+
+export default {
+  name: 'App',
+  components: {
+    StellarNavbar,
+    IntroSection,
+    BrandSection,
+    TerrainReference,
+    FeaturesSection,
+    GallerySection,
+    ContactSection,
+    AutresProduitsStellar
+  },
+  data() {
+    return {
+      // Login
+      username: '',
+      password: '',
+      loggingIn: false,
+      loginError: '',
+      // Produits
+      products: [],
+      loading: true,
+      error: null,
+      apiToken: 'stellaradmin2025',
+      apiUrl: 'http://localhost/dolibarr-21.0.0/htdocs/api/index.php',
+      newProduct: {
+        ref: '',
+        label: '',
+        price: '',
+        type: '0', // Produit
+        status: '1' // Actif
+      },
+      importing: false,
+      importMessage: '',
+      importSuccess: false,
+      file: null,
+      fileImportMessage: '',
+      fileImportSuccess: false
+    };
+  },
+  computed: {
+    isLoggedIn() {
+      return !!localStorage.getItem('user');
+    }
+  },
+  mounted() {
+    if (this.isLoggedIn) {
+      this.fetchProducts();
+    }
+  },
+  methods: {
+    async login() {
+      this.loggingIn = true;
+      this.loginError = '';
+      try {
+        const response = await axios.get(`${this.apiUrl}/login`, {
+          params: {
+            login: this.username,
+            password: this.password
+          },
+          headers: {
+            'DOLAPIKEY': this.apiToken
+          }
+        });
+
+        if (response.data.success) {
+          localStorage.setItem('user', JSON.stringify({
+            id: response.data.id,
+            login: this.username,
+            token: response.data.success // Stocker le token de session retourné
+          }));
+          this.username = '';
+          this.password = '';
+          this.fetchProducts();
+        } else {
+          this.loginError = response.data.error.message || 'Erreur de connexion';
+        }
+      } catch (error) {
+        this.loginError = error.response?.data?.error?.message || 'Erreur de connexion au serveur';
+        console.error(error);
+      } finally {
+        this.loggingIn = false;
+      }
+    },
+    logout() {
+      localStorage.removeItem('user');
+      this.products = [];
+      this.loading = true;
+    },
+    async fetchProducts() {
+      try {
+        const response = await axios.get(`${this.apiUrl}/products`, {
+          headers: { 'DOLAPIKEY': this.apiToken }
+        });
+        this.products = response.data;
+        this.loading = false;
+      } catch (error) {
+        this.error = 'Erreur lors du chargement des produits';
+        console.error('Erreur:', error);
+        this.loading = false;
+      }
+    },
+    async addToCart(productId) {
+      const orderData = {
+        socid: 1,
+        date: Math.floor(Date.now() / 1000),
+        lines: [{ fk_product: productId, qty: 1, subprice: 0 }]
+      };
+      try {
+        const response = await axios.post(`${this.apiUrl}/orders`, orderData, {
+          headers: {
+            'DOLAPIKEY': this.apiToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        alert('Commande créée ! ID: ' + response.data);
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la commande');
+      }
+    },
+    async importProduct() {
+      if (!this.newProduct.ref || !this.newProduct.label || !this.newProduct.price) {
+        this.importMessage = 'Veuillez remplir tous les champs !';
+        this.importSuccess = false;
+        return;
+      }
+      this.importing = true;
+      this.importMessage = '';
+      try {
+        const response = await axios.post(`${this.apiUrl}/products`, this.newProduct, {
+          headers: {
+            'DOLAPIKEY': this.apiToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        this.importMessage = `Produit importé avec succès ! ID: ${response.data}`;
+        this.importSuccess = true;
+        this.fetchProducts();
+        this.newProduct = { ref: '', label: '', price: '', type: '0', status: '1' };
+      } catch (error) {
+        this.importMessage = error.response?.data?.message || 'Erreur lors de l’importation';
+        this.importSuccess = false;
+        console.error('Erreur:', error);
+      } finally {
+        this.importing = false;
+      }
+    },
+    handleFileUpload(event) {
+      this.file = event.target.files[0];
+      this.fileImportMessage = '';
+    },
+    async importProductsFromFile() {
+      if (!this.file) {
+        this.fileImportMessage = 'Veuillez sélectionner un fichier !';
+        this.fileImportSuccess = false;
+        return;
+      }
+      this.importing = true;
+      this.fileImportMessage = 'Importation en cours...';
+
+      try {
+        const fileType = this.file.name.split('.').pop().toLowerCase();
+        let productsToImport = [];
+
+        if (fileType === 'csv') {
+          productsToImport = await this.parseCSV(this.file);
+        } else if (fileType === 'xlsx') {
+          productsToImport = await this.parseExcel(this.file);
+        } else if (fileType === 'json') {
+          productsToImport = await this.parseJSON(this.file);
+        } else {
+          throw new Error('Format de fichier non supporté (CSV, Excel, JSON uniquement)');
+        }
+
+        for (const product of productsToImport) {
+          await axios.post(`${this.apiUrl}/products`, {
+            ref: product.ref,
+            label: product.label,
+            price: product.price,
+            type: '0',
+            status: '1'
+          }, {
+            headers: {
+              'DOLAPIKEY': this.apiToken,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+        this.fileImportMessage = `Import terminé ! ${productsToImport.length} produits importés.`;
+        this.fileImportSuccess = true;
+        this.fetchProducts();
+        this.file = null;
+      } catch (error) {
+        this.fileImportMessage = error.message || 'Erreur lors de l’importation du fichier';
+        this.fileImportSuccess = false;
+        console.error('Erreur:', error);
+      } finally {
+        this.importing = false;
+      }
+    },
+    parseCSV(file) {
+      return new Promise((resolve) => {
+        Papa.parse(file, {
+          header: true,
+          complete: (result) => resolve(result.data)
+        });
+      });
+    },
+    parseExcel(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_json(sheet));
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    },
+    parseJSON(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(JSON.parse(e.target.result));
+        reader.readAsText(file);
+      });
+    }
+  }
+};
+</script>
+
+<style scoped>
+
+#app {
+  width: 100vw;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  overflow-x: hidden;
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Login */
+.login-container {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+.form-group {
+  margin-bottom: 15px;
+}
+label {
+  display: block;
+  margin-bottom: 5px;
+}
+input {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.login-container button {
+  width: 100%;
+  padding: 10px;
+  background-color: #e08b0d;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.login-container button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+.login-container button:hover:not(:disabled) {
+  background-color: #c07a0c;
+}
+.error {
+  color: red;
+  margin-top: 10px;
+}
+
+/* Produits */
+.content {
+  font-family: 'Montserrat', sans-serif;
+  position: relative;
+  z-index: 2;
+  padding: 40px 20px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.produit-heading {
+  font-size: 40px;
+  font-weight: 700;
+  color: #e08b0d;
+  margin-bottom: 30px;
+}
+
+.import-form {
+  margin: 20px auto;
+  max-width: 500px;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.import-form h2 {
+  font-family: 'Montserrat-Bold', Helvetica;
+  color: #e08b0d;
+  font-size: 24px;
+  margin-bottom: 15px;
+}
+
+.import-form input,
+.import-form input[type="file"] {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-family: 'Montserrat-Regular', Helvetica;
+}
+
+.import-form button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.import-form .success {
+  color: green;
+  margin-top: 10px;
+  font-family: 'Montserrat-Regular', Helvetica;
+}
+
+.import-form .error {
+  color: red;
+  margin-top: 10px;
+  font-family: 'Montserrat-Regular', Helvetica;
+}
+
+.product-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+}
+
+.product {
+  border: 1px solid #ccc;
+  padding: 20px;
+  max-width: 300px;
+  background-color: #fff;
+  border-radius: 10px;
+  font-family: 'Montserrat', sans-serif;
+  text-align: left;
+}
+
+.product h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #e08b0d;
+  margin-bottom: 10px;
+}
+
+.product p {
+  font-size: 16px;
+  margin: 6px 0;
+}
+
+button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: #e08b0d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  font-family: 'Montserrat', sans-serif;
+}
+
+button:hover:not(:disabled) {
+  background-color: #c07a0c;
+}
+
+/* Footer */
+.footer-stellar {
+  background-color: #e08b0d;
+  color: #000;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem 1.5rem;
+  text-align: left;
+  font-family: 'Montserrat', sans-serif;
+}
+
+@media (min-width: 768px) {
+  .footer-stellar {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.footer-socials {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.footer-socials .social-icons img {
+  width: 32px;
+  height: 32px;
+  transition: transform 0.2s ease;
+}
+
+.footer-socials .social-icons img:hover {
+  transform: scale(1.1);
+}
+</style>
